@@ -23,6 +23,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final ChatService _chatService = ChatService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final ScrollController _scrollController = ScrollController();
+  bool _isComposing = false;
 
   @override
   void initState() {
@@ -55,9 +56,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (message.isEmpty) return;
 
     _messageController.clear();
+    setState(() => _isComposing = false);
     await _chatService.sendMessage(widget.otherUserId, message);
     
-    // 스크롤을 최하단으로 이동
     if (_scrollController.hasClients) {
       await _scrollController.animateTo(
         0,
@@ -72,11 +73,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final chatId = _chatService.getChatId(_auth.currentUser!.uid, widget.otherUserId);
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        elevation: 1,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(
           children: [
-            Text(widget.otherUserName),
             StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('users')
@@ -84,57 +90,123 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return const Text(
-                    '상태 확인 중...',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
+                  return const CircleAvatar(
+                    radius: 20,
+                    child: Icon(Icons.person),
                   );
                 }
 
                 final userData = snapshot.data!.data() as Map<String, dynamic>?;
-                final isOnline = userData?['isOnline'] ?? false;
-                final lastSeen = userData?['lastSeen'] as Timestamp?;
+                final photoUrl = userData?['photoUrl'] as String?;
+                final isOnline = userData?['isOnline'] as bool? ?? false;
 
-                if (isOnline) {
-                  return const Text(
-                    '온라인',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontSize: 12,
+                return Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                      child: photoUrl == null ? const Icon(Icons.person) : null,
                     ),
-                  );
-                } else if (lastSeen != null) {
-                  final lastSeenDate = lastSeen.toDate();
-                  final now = DateTime.now();
-                  final difference = now.difference(lastSeenDate);
-
-                  String lastSeenText;
-                  if (difference.inMinutes < 1) {
-                    lastSeenText = '방금 전';
-                  } else if (difference.inHours < 1) {
-                    lastSeenText = '${difference.inMinutes}분 전';
-                  } else if (difference.inDays < 1) {
-                    lastSeenText = '${difference.inHours}시간 전';
-                  } else {
-                    lastSeenText = DateFormat('MM/dd HH:mm').format(lastSeenDate);
-                  }
-
-                  return Text(
-                    '마지막 접속: $lastSeenText',
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  );
-                }
-
-                return const SizedBox.shrink();
+                    if (isOnline)
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
               },
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.otherUserName,
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(widget.otherUserId)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox.shrink();
+
+                      final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                      final isOnline = userData?['isOnline'] as bool? ?? false;
+                      final lastSeen = userData?['lastSeen'] as Timestamp?;
+
+                      if (isOnline) {
+                        return const Text(
+                          '활동 중',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontSize: 12,
+                          ),
+                        );
+                      } else if (lastSeen != null) {
+                        final now = DateTime.now();
+                        final difference = now.difference(lastSeen.toDate());
+                        String lastSeenText;
+
+                        if (difference.inMinutes < 1) {
+                          lastSeenText = '방금 전까지 활동';
+                        } else if (difference.inHours < 1) {
+                          lastSeenText = '${difference.inMinutes}분 전까지 활동';
+                        } else if (difference.inDays < 1) {
+                          lastSeenText = '${difference.inHours}시간 전까지 활동';
+                        } else {
+                          lastSeenText = DateFormat('MM/dd HH:mm').format(lastSeen.toDate());
+                        }
+
+                        return Text(
+                          lastSeenText,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        );
+                      }
+
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.phone, color: Colors.blue),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.videocam, color: Colors.blue),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Colors.blue),
+            onPressed: () {},
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -157,9 +229,29 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
                 final messages = snapshot.data!.docs;
                 if (messages.isEmpty) {
-                  return const Center(child: Text('메시지가 없습니다'));
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.message_outlined,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '${widget.otherUserName}님과 대화를 시작해보세요!',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
                 }
 
+                String? currentDate;
                 return ListView.builder(
                   controller: _scrollController,
                   reverse: true,
@@ -169,66 +261,114 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     final isMe = message['senderId'] == _auth.currentUser!.uid;
                     final timestamp = message['timestamp'] as Timestamp?;
                     final messageTime = timestamp?.toDate() ?? DateTime.now();
+                    final text = message['text'] as String;
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8.0,
-                        vertical: 4.0,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: isMe
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
-                        children: [
-                          if (!isMe) ...[
-                            const CircleAvatar(
-                              radius: 16,
-                              child: Icon(Icons.person),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          Column(
-                            crossAxisAlignment: isMe
-                                ? CrossAxisAlignment.end
-                                : CrossAxisAlignment.start,
-                            children: [
-                              Container(
+                    // 날짜 구분선 표시
+                    final messageDate = DateFormat('yyyy년 M월 d일').format(messageTime);
+                    bool showDateDivider = false;
+                    if (currentDate != messageDate) {
+                      showDateDivider = true;
+                      currentDate = messageDate;
+                    }
+
+                    return Column(
+                      children: [
+                        if (showDateDivider)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
+                                  horizontal: 12,
+                                  vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isMe
-                                      ? Theme.of(context).primaryColor
-                                      : Colors.grey[300],
-                                  borderRadius: BorderRadius.circular(20),
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  message['text'] as String,
+                                  messageDate,
                                   style: TextStyle(
-                                    color: isMe ? Colors.white : Colors.black,
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                DateFormat('HH:mm').format(messageTime),
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0,
+                            vertical: 4.0,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: isMe
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              if (!isMe) ...[
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundImage: null,
+                                  child: const Icon(Icons.person, size: 20),
                                 ),
+                                const SizedBox(width: 8),
+                              ],
+                              Column(
+                                crossAxisAlignment: isMe
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    constraints: BoxConstraints(
+                                      maxWidth: MediaQuery.of(context).size.width * 0.7,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isMe
+                                          ? const Color(0xFF0084FF)
+                                          : Colors.grey[200],
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: const Radius.circular(20),
+                                        topRight: const Radius.circular(20),
+                                        bottomLeft: Radius.circular(isMe ? 20 : 0),
+                                        bottomRight: Radius.circular(isMe ? 0 : 20),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      text,
+                                      style: TextStyle(
+                                        color: isMe ? Colors.white : Colors.black87,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    DateFormat('HH:mm').format(messageTime),
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
                               ),
+                              if (isMe) ...[
+                                const SizedBox(width: 8),
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundImage: null,
+                                  child: const Icon(Icons.person, size: 20),
+                                ),
+                              ],
                             ],
                           ),
-                          if (isMe) ...[
-                            const SizedBox(width: 8),
-                            const CircleAvatar(
-                              radius: 16,
-                              child: Icon(Icons.person),
-                            ),
-                          ],
-                        ],
-                      ),
+                        ),
+                      ],
                     );
                   },
                 );
@@ -236,45 +376,67 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
           ),
           Container(
-            padding: const EdgeInsets.all(8.0),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.5),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, -1),
+                  color: Colors.grey.withOpacity(0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: '메시지를 입력하세요',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8.0,
+                  vertical: 4.0,
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.photo_camera),
+                      color: Colors.blue,
+                      onPressed: () {},
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.photo),
+                      color: Colors.blue,
+                      onPressed: () {},
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        onChanged: (text) {
+                          setState(() => _isComposing = text.isNotEmpty);
+                        },
+                        decoration: InputDecoration(
+                          hintText: '메시지 입력...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(25),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[100],
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                        ),
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (text) {
+                          if (_isComposing) _sendMessage();
+                        },
                       ),
                     ),
-                    maxLines: null,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.send),
+                      color: _isComposing ? Colors.blue : Colors.grey,
+                      onPressed: _isComposing ? _sendMessage : null,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: _sendMessage,
-                  color: Theme.of(context).primaryColor,
-                ),
-              ],
+              ),
             ),
           ),
         ],
