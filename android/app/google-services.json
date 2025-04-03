@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1009014973695",
+    "firebase_url": "https://guardianlink-73167-default-rtdb.firebaseio.com",
+    "project_id": "guardianlink-73167",
+    "storage_bucket": "guardianlink-73167.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1009014973695:android:b9622f502b248f31d918ca",
+        "android_client_info": {
+          "package_name": "com.example.guardianlink"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB78y5IlSJOdy5qAwWCPfLi2eUVId_HBjA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
