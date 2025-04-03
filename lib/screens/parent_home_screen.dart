@@ -4,6 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_edit_screen.dart';
 import 'login_screen.dart';
 import 'parent/parent_pairing_screen.dart';
+import 'chat/chat_screen.dart';
+import '../services/battery_service.dart';
+import '../widgets/unread_message_badge.dart';
 
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({Key? key}) : super(key: key);
@@ -18,6 +21,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   String? _matchedChildPhotoUrl;
   bool? _isChildOnline;
   DateTime? _lastActive;
+  final BatteryService _batteryService = BatteryService();
 
   @override
   void initState() {
@@ -296,7 +300,19 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               _buildChildActionButton(
                 icon: Icons.message,
                 label: '메시지',
-                onTap: () {},
+                onTap: () {
+                  if (_matchedChildId != null && _matchedChildName != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatScreen(
+                          otherUserId: _matchedChildId!,
+                          otherUserName: _matchedChildName!,
+                        ),
+                      ),
+                    );
+                  }
+                },
               ),
               _buildChildActionButton(
                 icon: Icons.checklist,

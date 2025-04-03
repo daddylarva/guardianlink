@@ -4,9 +4,17 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   try {
-    WidgetsFlutterBinding.ensureInitialized();
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: 'AIzaSyC885z2J3a_0qEoahYUoa0SHpx5awvZ1CI',
+        appId: '1:1009014973695:ios:34a648feb45bb782d918ca',
+        messagingSenderId: '1009014973695',
+        projectId: 'guardianlink-73167',
+        storageBucket: 'guardianlink-73167.firebasestorage.app',
+      ),
+    );
     print('Firebase initialized successfully');
   } catch (e) {
     print('Error initializing Firebase: $e');
