@@ -10,6 +10,10 @@ import 'parent/parent_pairing_screen.dart';
 import 'chat/chat_list_screen.dart';
 import 'chat/chat_screen.dart';
 import 'child_profile_screen.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui';
+import 'child_location_screen.dart';
 
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({super.key});
@@ -191,135 +195,163 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildUserCard(),
-            const SizedBox(height: 32),
-            _buildMatchedChildrenSection(),
-            const SizedBox(height: 32),
-            const Text(
-              '오늘의 활동',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2D3142),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildUserProfileCard(_auth.currentUser!),
+                  const SizedBox(height: 32),
+                  _buildMatchedChildrenSection(),
+                  const SizedBox(height: 32),
+                  const Text(
+                    '오늘의 활동',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2D3142),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildActionCard(
+                    context,
+                    title: '자녀 위치 확인',
+                    icon: Icons.location_on,
+                    color: Colors.blue,
+                    onTap: () {},
+                  ),
+                  const SizedBox(height: 16),
+                  _buildActionCard(
+                    context,
+                    title: '할 일 관리',
+                    icon: Icons.checklist,
+                    color: Colors.green,
+                    onTap: () {},
+                  ),
+                  const SizedBox(height: 16),
+                  _buildActionCard(
+                    context,
+                    title: '긴급 알림',
+                    icon: Icons.warning,
+                    color: Colors.red,
+                    onTap: () {},
+                  ),
+                  const SizedBox(height: 16),
+                  _buildActionCard(
+                    context,
+                    title: '자녀 연결',
+                    icon: Icons.link,
+                    color: Colors.orange,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ParentPairingScreen()),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-            _buildActionCard(
-              context,
-              title: '자녀 위치 확인',
-              icon: Icons.location_on,
-              color: Colors.blue,
-              onTap: () {},
-            ),
-            const SizedBox(height: 16),
-            _buildActionCard(
-              context,
-              title: '할 일 관리',
-              icon: Icons.checklist,
-              color: Colors.green,
-              onTap: () {},
-            ),
-            const SizedBox(height: 16),
-            _buildActionCard(
-              context,
-              title: '긴급 알림',
-              icon: Icons.warning,
-              color: Colors.red,
-              onTap: () {},
-            ),
-            const SizedBox(height: 16),
-            _buildActionCard(
-              context,
-              title: '자녀 연결',
-              icon: Icons.link,
-              color: Colors.orange,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ParentPairingScreen()),
-                );
-              },
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildUserCard() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const SizedBox();
-
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+  Widget _buildUserProfileCard(User currentUser) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _firestore.collection('users').doc(currentUser.uid).snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return const SizedBox(height: 180, child: Center(child: CircularProgressIndicator()));
         }
 
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final nickname = data?['nickname'] ?? '사용자';
-        final photoUrl = data?['photoUrl'];
+        final userData = snapshot.data!.data() as Map<String, dynamic>?;
+        if (userData == null) return const SizedBox.shrink();
+
+        final nickname = userData['nickname'] as String? ?? '사용자';
+        final photoUrl = userData['photoUrl'] as String?;
 
         return Card(
-          margin: const EdgeInsets.all(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
-                        );
-                      },
+          elevation: 4,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(15),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.blue.shade400,
+                  Colors.blue.shade800,
+                ],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileEditScreen(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ),
+                      ),
                       child: CircleAvatar(
-                        radius: 30,
-                        backgroundImage: photoUrl != null
-                            ? NetworkImage(photoUrl)
-                            : const AssetImage('assets/images/default_avatar.png')
-                                as ImageProvider,
+                        radius: 35,
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                        child: photoUrl == null
+                            ? const Icon(Icons.person, size: 35, color: Colors.white)
+                            : null,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '안녕하세요, $nickname님',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '안녕하세요,',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white.withOpacity(0.8),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '오늘도 좋은 하루 되세요!',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$nickname님',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -358,226 +390,358 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        StreamBuilder<QuerySnapshot>(
-          stream: _firestore
-              .collection('users')
-              .doc(currentUser.uid)
-              .collection('matched_children')
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const Center(child: Text('오류가 발생했습니다'));
-            }
+        _buildMatchedChildrenList(currentUser),
+      ],
+    );
+  }
 
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.people_outline,
-                      size: 64,
-                      color: Colors.grey,
+  Widget _buildMatchedChildrenList(User currentUser) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('matched_children')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final matchedChildren = snapshot.data!.docs;
+        if (matchedChildren.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.person_outline,
+                  size: 64,
+                  color: Colors.grey,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '매칭된 자녀가 없습니다',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ParentPairingScreen(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      '아직 매칭된 자녀가 없습니다',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('자녀와 매칭하기'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: matchedChildren.length,
+          itemBuilder: (context, index) {
+            final childDoc = matchedChildren[index];
+            final childId = childDoc.id;
+            final childData = childDoc.data() as Map<String, dynamic>;
+            final isOnline = childData['isOnline'] ?? false;
+            final lastSeen = childData['lastSeen'] as Timestamp?;
+
+            return StreamBuilder<DocumentSnapshot>(
+              stream: _firestore.collection('users').doc(childId).snapshots(),
+              builder: (context, userSnapshot) {
+                if (!userSnapshot.hasData) {
+                  return const SizedBox.shrink();
+                }
+
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                if (userData == null) return const SizedBox.shrink();
+
+                final nickname = userData['nickname'] as String? ?? '이름 없음';
+                final photoUrl = userData['photoUrl'] as String?;
+                final batteryLevel = userData['batteryLevel'] as int? ?? 0;
+
+                return Card(
+                  elevation: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.purple.shade400,
+                          Colors.purple.shade800,
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.person_add),
-                      label: const Text('자녀 추가하기'),
-                      onPressed: () {
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(16),
+                      leading: Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 2,
+                          ),
+                          image: photoUrl != null
+                              ? DecorationImage(
+                                  image: NetworkImage(photoUrl!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: photoUrl == null
+                            ? const Icon(
+                                Icons.person,
+                                color: Colors.white,
+                                size: 30,
+                              )
+                            : StreamBuilder<DocumentSnapshot>(
+                                stream: _firestore
+                                    .collection('users')
+                                    .doc(childId)
+                                    .snapshots(),
+                                builder: (context, snapshot) {
+                                  final isOnline = snapshot.data?.data()
+                                          as Map<String, dynamic>? ??
+                                      {'isOnline': false};
+                                  if (isOnline['isOnline'] == true) {
+                                    return Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: Container(
+                                        width: 12,
+                                        height: 12,
+                                        decoration: BoxDecoration(
+                                          color: Colors.green,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              nickname,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.battery_std,
+                                  color: _getBatteryColor(batteryLevel),
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '$batteryLevel%',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          StreamBuilder<DocumentSnapshot>(
+                            stream: _firestore.collection('users').doc(childId).snapshots(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData) {
+                                return const Text(
+                                  '상태 확인 중...',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                );
+                              }
+
+                              final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                              final isOnline = userData?['isOnline'] ?? false;
+                              final lastSeen = userData?['lastSeen'] as Timestamp?;
+                              final lastLocation = userData?['lastLocation'] as Map<String, dynamic>?;
+                              final address = lastLocation?['address'] as String?;
+
+                              // 위치 정보가 있으면 히스토리에 저장
+                              if (lastLocation != null) {
+                                _firestore
+                                    .collection('users')
+                                    .doc(childId)
+                                    .collection('location_history')
+                                    .add({
+                                  'latitude': lastLocation['latitude'],
+                                  'longitude': lastLocation['longitude'],
+                                  'address': lastLocation['address'],
+                                  'landmark': lastLocation['landmark'],
+                                  'timestamp': FieldValue.serverTimestamp(),
+                                });
+                              }
+
+                              String statusText;
+                              if (isOnline) {
+                                statusText = '온라인';
+                              } else if (lastSeen != null) {
+                                final now = DateTime.now();
+                                final difference = now.difference(lastSeen.toDate());
+                                if (difference.inMinutes < 1) {
+                                  statusText = '방금 전';
+                                } else if (difference.inHours < 1) {
+                                  statusText = '${difference.inMinutes}분 전';
+                                } else if (difference.inDays < 1) {
+                                  statusText = '${difference.inHours}시간 전';
+                                } else {
+                                  statusText = '오프라인';
+                                }
+                              } else {
+                                statusText = '오프라인';
+                              }
+
+                              return Row(
+                                children: [
+                                  Text(
+                                    statusText,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  if (address != null) ...[
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      '•',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        address,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.location_on, color: Colors.white, size: 28),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ChildLocationScreen(
+                                        childId: childId,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.checklist, color: Colors.white, size: 28),
+                                onPressed: () {
+                                  // 할일 관리 기능 구현
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 28),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ChatScreen(
+                                        otherUserId: childId,
+                                        otherUserName: nickname,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      trailing: null,
+                      onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const ParentPairingScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => ChildProfileScreen(
+                              childId: childId,
+                              nickname: nickname,
+                            ),
+                          ),
                         );
                       },
                     ),
-                  ],
-                ),
-              );
-            }
-
-            return SizedBox(
-              height: 280.0 * snapshot.data!.docs.length,  // 각 카드의 예상 높이
-              child: ListView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                shrinkWrap: true,
-                itemCount: snapshot.data!.docs.length,
-                itemBuilder: (context, index) {
-                  final childDoc = snapshot.data!.docs[index];
-                  final childId = childDoc.id;
-
-                  return StreamBuilder<DocumentSnapshot>(
-                    stream: _firestore.collection('users').doc(childId).snapshots(),
-                    builder: (context, userSnapshot) {
-                      if (!userSnapshot.hasData) {
-                        return const SizedBox(height: 280, child: Center(child: CircularProgressIndicator()));
-                      }
-
-                      final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-                      if (userData == null) {
-                        return const SizedBox.shrink();
-                      }
-
-                      final nickname = userData['nickname'] as String? ?? '이름 없음';
-                      final photoUrl = userData['photoUrl'] as String?;
-                      final isOnline = userData['isOnline'] as bool? ?? false;
-                      final lastSeen = userData['lastSeen'] as Timestamp?;
-                      final batteryLevel = userData['batteryLevel'] as int? ?? 0;
-                      final location = userData['location'] as Map<String, dynamic>?;
-
-                      return Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Card(
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(15),
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Theme.of(context).primaryColor.withOpacity(0.7),
-                                  Theme.of(context).primaryColor.withOpacity(0.3),
-                                ],
-                              ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Stack(
-                                        children: [
-                                          CircleAvatar(
-                                            radius: 30,
-                                            backgroundImage: photoUrl != null
-                                                ? NetworkImage(photoUrl)
-                                                : null,
-                                            child: photoUrl == null
-                                                ? const Icon(Icons.person, size: 30)
-                                                : null,
-                                          ),
-                                          if (isOnline)
-                                            Positioned(
-                                              right: 0,
-                                              bottom: 0,
-                                              child: Container(
-                                                width: 15,
-                                                height: 15,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.green,
-                                                  shape: BoxShape.circle,
-                                                  border: Border.all(
-                                                    color: Colors.white,
-                                                    width: 2,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              nickname,
-                                              style: const TextStyle(
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              isOnline
-                                                  ? '온라인'
-                                                  : lastSeen != null
-                                                      ? '마지막 접속: ${_formatLastSeen(lastSeen)}'
-                                                      : '오프라인',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: isOnline
-                                                    ? Colors.green[100]
-                                                    : Colors.white70,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    children: [
-                                      _buildInfoCard(
-                                        icon: Icons.battery_full,
-                                        title: '배터리',
-                                        value: '$batteryLevel%',
-                                        color: _getBatteryColor(batteryLevel),
-                                      ),
-                                      if (location != null) ...[
-                                        _buildInfoCard(
-                                          icon: Icons.location_on,
-                                          title: '위치',
-                                          value: '${location['address'] ?? '알 수 없음'}',
-                                          color: Colors.white,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      _buildActionButton(
-                                        icon: Icons.message,
-                                        label: '메시지',
-                                        onTap: () => _navigateToChatScreen(
-                                          context,
-                                          childId,
-                                          nickname,
-                                        ),
-                                      ),
-                                      _buildActionButton(
-                                        icon: Icons.person,
-                                        label: '프로필',
-                                        onTap: () => _navigateToChildProfile(
-                                          context,
-                                          childId,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             );
           },
-        ),
-      ],
+        );
+      },
     );
   }
 
