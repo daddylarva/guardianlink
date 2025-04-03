@@ -8,12 +8,77 @@ service cloud.firestore {
       allow read, write: if request.time < timestamp.date(2025, 5, 2);
     }
 
-    // ✅ 사용자 정보: 로그인된 사용자만 자신의 정보에 접근 가능
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // 사용자가 매칭된 자녀인지 확인하는 함수
+    function isMatchedChild(userId, childId) {
+      return exists(/databases/$(database)/documents/users/$(userId)/matched_children/$(childId));
     }
 
-    // ✅ 매칭 코드: 로그인된 사용자만 읽기/쓰기 가능
+    // 사용자가 매칭된 부모인지 확인하는 함수
+    function isMatchedParent(userId, parentId) {
+      return exists(/databases/$(database)/documents/users/$(parentId)/matched_children/$(userId));
+    }
+
+    // ✅ 사용자 정보
+    match /users/{userId} {
+      // 기본 문서 접근 규칙
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||  // 자신이거나
+        isMatchedChild(request.auth.uid, userId) ||  // 매칭된 자녀이거나
+        isMatchedParent(userId, request.auth.uid)    // 매칭된 부모인 경우
+      );
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // guardians 서브컬렉션
+      match /guardians/{guardianId} {
+        allow read: if request.auth != null && (
+          request.auth.uid == userId ||
+          request.auth.uid == guardianId
+        );
+        allow write: if request.auth != null && (
+          request.auth.uid == userId ||
+          request.auth.uid == guardianId
+        );
+      }
+      
+      // matched_children 서브컬렉션
+      match /matched_children/{childId} {
+        allow read: if request.auth != null && (
+          request.auth.uid == userId ||
+          request.auth.uid == childId
+        );
+        allow write: if request.auth != null && (
+          request.auth.uid == userId ||
+          request.auth.uid == childId
+        );
+      }
+
+      // chats 서브컬렉션
+      match /chats/{chatId} {
+        allow read, write: if request.auth != null && (
+          request.auth.uid == userId ||
+          request.auth.uid == chatId ||
+          isMatchedChild(request.auth.uid, userId) ||
+          isMatchedParent(userId, request.auth.uid)
+        );
+      }
+    }
+
+    // ✅ 채팅
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null && (
+        chatId.matches(request.auth.uid + ".*") ||
+        chatId.matches(".*" + request.auth.uid)
+      );
+      
+      match /messages/{messageId} {
+        allow read, write: if request.auth != null && (
+          chatId.matches(request.auth.uid + ".*") ||
+          chatId.matches(".*" + request.auth.uid)
+        );
+      }
+    }
+
+    // ✅ 매칭 코드
     match /matching_codes/{code} {
       allow read, write: if request.auth != null;
     }

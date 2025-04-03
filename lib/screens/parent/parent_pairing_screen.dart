@@ -15,6 +15,8 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
   final _codeController = TextEditingController();
   bool _isLoading = false;
   String? _inviteCode;
+  DateTime? _codeExpiryTime;
+  static const int _codeValidityMinutes = 30; // 초대 코드 유효 시간 (분)
   String? _matchedChildId;
   String? _matchedChildName;
 
@@ -42,10 +44,25 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
           .get();
 
       if (doc.exists) {
-        setState(() {
-          _inviteCode = doc.data()?['inviteCode'] as String?;
-        });
+        final data = doc.data();
+        if (data != null) {
+          final code = data['inviteCode'] as String?;
+          final generatedAt = data['inviteCodeGeneratedAt'] as Timestamp?;
+
+          if (code != null && generatedAt != null) {
+            final expiryTime = generatedAt.toDate().add(Duration(minutes: _codeValidityMinutes));
+            if (expiryTime.isAfter(DateTime.now())) {
+              setState(() {
+                _inviteCode = code;
+                _codeExpiryTime = expiryTime;
+              });
+              return;
+            }
+          }
+        }
       }
+      // 유효한 코드가 없으면 새로 생성
+      await _generateInviteCode();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -60,25 +77,23 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
     if (currentUser == null) return;
 
     try {
-      final doc = await FirebaseFirestore.instance
+      final matchedChildren = await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUser.uid)
+          .collection('matched_children')
           .get();
 
-      if (doc.exists) {
-        final childId = doc.data()?['childId'] as String?;
-        if (childId != null) {
-          final childDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(childId)
-              .get();
-          
-          if (childDoc.exists) {
-            setState(() {
-              _matchedChildId = childId;
-              _matchedChildName = childDoc.data()?['nickname'] as String?;
-            });
-          }
+      if (matchedChildren.docs.isNotEmpty) {
+        final childDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(matchedChildren.docs.first.id)
+            .get();
+        
+        if (childDoc.exists) {
+          setState(() {
+            _matchedChildId = childDoc.id;
+            _matchedChildName = childDoc.data()?['nickname'] as String?;
+          });
         }
       }
     } catch (e) {
@@ -100,6 +115,7 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
       // 6자리 랜덤 코드 생성
       final random = Random();
       final code = List.generate(6, (_) => random.nextInt(10)).join();
+      final now = DateTime.now();
 
       // Firestore에 초대 코드 저장
       await FirebaseFirestore.instance
@@ -107,10 +123,14 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
           .doc(currentUser.uid)
           .update({
         'inviteCode': code,
-        'inviteCodeGeneratedAt': FieldValue.serverTimestamp(),
+        'inviteCodeGeneratedAt': Timestamp.fromDate(now),
+        'isParent': true,
       });
 
-      setState(() => _inviteCode = code);
+      setState(() {
+        _inviteCode = code;
+        _codeExpiryTime = now.add(Duration(minutes: _codeValidityMinutes));
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -124,6 +144,14 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
     }
   }
 
+  String _formatRemainingTime() {
+    if (_codeExpiryTime == null) return '';
+    final now = DateTime.now();
+    final remaining = _codeExpiryTime!.difference(now);
+    if (remaining.isNegative) return '만료됨';
+    return '${remaining.inMinutes}분 ${remaining.inSeconds % 60}초';
+  }
+
   Future<void> _unmatchChild() async {
     setState(() => _isLoading = true);
 
@@ -131,7 +159,7 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) throw Exception('로그인이 필요합니다.');
 
-      // 자녀의 매칭 정보도 함께 제거
+      // 자녀의 매칭 정보 제거
       if (_matchedChildId != null) {
         await FirebaseFirestore.instance
             .collection('users')
@@ -140,16 +168,15 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
           'guardianId': FieldValue.delete(),
           'matchedAt': FieldValue.delete(),
         });
-      }
 
-      // 부모의 매칭 정보 제거
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid)
-          .update({
-        'childId': FieldValue.delete(),
-        'matchedAt': FieldValue.delete(),
-      });
+        // 부모의 matched_children 서브컬렉션에서 자녀 정보 제거
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('matched_children')
+            .doc(_matchedChildId)
+            .delete();
+      }
 
       setState(() {
         _matchedChildId = null;
@@ -186,45 +213,83 @@ class _ParentPairingScreenState extends State<ParentPairingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    const Text(
+                      '초대 코드',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_inviteCode != null) ...[
+                      Text(
+                        _inviteCode!,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 8,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '남은 시간: ${_formatRemainingTime()}',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ] else if (_isLoading) ...[
+                      const CircularProgressIndicator(),
+                    ],
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _generateInviteCode,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('새로운 코드 생성'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             const Text(
-              '나의 초대 코드',
+              '초대 코드 사용 방법',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue[200]!),
-              ),
-              child: Text(
-                _inviteCode ?? '초대 코드가 없습니다',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue[700],
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('1. 자녀의 GuardianLink 앱에서 "보호자 연결" 메뉴 선택'),
+                    SizedBox(height: 8),
+                    Text('2. 위의 초대 코드를 입력'),
+                    SizedBox(height: 8),
+                    Text('3. 연결 완료!'),
+                    SizedBox(height: 16),
+                    Text(
+                      '* 초대 코드는 30분간 유효하며, 한 번만 사용할 수 있습니다.',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(height: 24),
-            if (_inviteCode == null)
-              ElevatedButton(
-                onPressed: _isLoading ? null : _generateInviteCode,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('초대 코드 생성하기'),
-              ),
-            const SizedBox(height: 32),
             if (_matchedChildId != null) ...[
+              const SizedBox(height: 24),
               const Text(
                 '매칭된 자녀',
                 style: TextStyle(

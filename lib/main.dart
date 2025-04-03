@@ -2,23 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/login_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'AIzaSyC885z2J3a_0qEoahYUoa0SHpx5awvZ1CI',
-        appId: '1:1009014973695:ios:34a648feb45bb782d918ca',
-        messagingSenderId: '1009014973695',
-        projectId: 'guardianlink-73167',
-        storageBucket: 'guardianlink-73167.firebasestorage.app',
-      ),
-    );
-    print('Firebase initialized successfully');
-  } catch (e) {
-    print('Error initializing Firebase: $e');
-  }
+  await Firebase.initializeApp();
+  
+  // 알림 서비스 초기화
+  await NotificationService().initialize();
+  
   runApp(const GuardianLinkApp());
 }
 
@@ -30,6 +22,10 @@ class GuardianLinkApp extends StatelessWidget {
     return MaterialApp(
       title: 'GuardianLink',
       debugShowCheckedModeBanner: false,
+      initialRoute: '/login',
+      routes: {
+        '/login': (context) => const LoginScreen(),
+      },
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -87,7 +83,6 @@ class GuardianLinkApp extends StatelessWidget {
         Locale('en', 'US'),
       ],
       locale: const Locale('ko', 'KR'),
-      home: const LoginScreen(),
     );
   }
 }
